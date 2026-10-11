@@ -1,0 +1,82 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: macOS (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x86_64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Verify architecture
+        env:
+          EXPECTED_ARCH: ${{ matrix.arch }}
+        run: test "$(uname -m)" = "$EXPECTED_ARCH"
+      - name: Test pacing and provider parsing
+        run: ./test.sh
+      - name: Build and verify app
+        run: |
+          ./build.sh
+          codesign --verify --strict "dist/Usage Pace.app"
+          plutil -lint "dist/Usage Pace.app/Contents/Info.plist"
+      - name: Package app
+        env:
+          ARCH: ${{ matrix.arch }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [ "$REF_TYPE" = tag ]; then
+            VERSION=$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "dist/Usage Pace.app/Contents/Info.plist")
+            test "$REF_NAME" = "v$VERSION"
+          fi
+          mkdir -p release
+          ditto -c -k --sequesterRsrc --keepParent "dist/Usage Pace.app" "release/Usage-Pace-macos-$ARCH.zip"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: Usage-Pace-macos-${{ matrix.arch }}
+          path: release/*.zip
+          retention-days: 14
+          if-no-files-found: error
+  release:
+    name: Publish release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: Usage-Pace-macos-*
+          path: release
+          merge-multiple: true
+      - name: Checksums
+        run: cd release && sha256sum *.zip > SHA256SUMS.txt
+      - name: Publish tested builds
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: gh release create "$RELEASE_TAG" release/*.zip release/SHA256SUMS.txt --verify-tag --title "Usage Pace $RELEASE_TAG" --notes-file CHANGELOG.md

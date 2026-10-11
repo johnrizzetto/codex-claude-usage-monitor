@@ -1,0 +1,16 @@
+.build/
+dist/
+.DS_Store
+.swiftpm/
+.env
+.env.*
+*.log
+*.pem
+*.key
+auth.json
+.credentials.json
+accounts.json
+codex-1/
+codex-2/
+claude-login.command
+release/

@@ -1,0 +1,33 @@
+name: Bug report
+description: Report a reproducible problem without private account data.
+title: '[Bug] '
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: 'Do not upload tokens, credential files, accounts.json or screenshots containing account emails. Report security issues through SECURITY.md.'
+  - type: input
+    id: environment
+    attributes:
+      label: App version, macOS version and Mac architecture
+      placeholder: 'Usage Pace 1.0.0, macOS 15, Apple silicon'
+    validations:
+      required: true
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Provider
+      options: [Codex, Claude, Both, General UI]
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Include the selected usage window and a sanitized description.
+    validations:
+      required: true
+  - type: textarea
+    id: expectation
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
