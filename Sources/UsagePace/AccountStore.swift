@@ -5,6 +5,7 @@ import PaceCore
 struct AccountState: Identifiable, Codable {
     var id: Int
     var label: String
+    var badge: String? = nil
     var email: String?
     var windows: [UsageWindow] = []
     var updated: Date?
@@ -14,7 +15,8 @@ struct AccountState: Identifiable, Codable {
     var signingIn = false
     var isClaude: Bool { id == 2 }
     var provider: String { isClaude ? "CLAUDE" : "CODEX" }
-    enum CodingKeys: CodingKey { case id, label, email, windows, updated, connected }
+    var menuBadge: String { AccountBadge.title(custom: badge, slot: id) }
+    enum CodingKeys: CodingKey { case id, label, badge, email, windows, updated, connected }
 }
 
 @MainActor final class AccountStore: ObservableObject {
@@ -55,6 +57,11 @@ struct AccountState: Identifiable, Codable {
         onChange?()
     }
     func rename(_ id: Int, _ label: String) { accounts[id].label = label; save() }
+    func renameBadge(_ id: Int, _ value: String) {
+        let badge = AccountBadge.normalize(value)
+        accounts[id].badge = badge.isEmpty ? nil : badge
+        save()
+    }
     func refreshAll() { for id in accounts.indices where accounts[id].connected { refresh(id) } }
     func refresh(_ id: Int, allowPrompt: Bool = false) {
         guard !accounts[id].busy, !accounts[id].signingIn else { return }
@@ -167,7 +174,7 @@ struct AccountState: Identifiable, Codable {
     func disconnect(_ id: Int) {
         generations[id] += 1
         cancelLogin(id)
-        accounts[id] = AccountState(id: id, label: accounts[id].label)
+        accounts[id] = AccountState(id: id, label: accounts[id].label, badge: accounts[id].badge)
         if id == 2 { claudeCredential = nil }
         // Keep provider credentials on disk so disconnect does not revoke or destroy a login.
         save()

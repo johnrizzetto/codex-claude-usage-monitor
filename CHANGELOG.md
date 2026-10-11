@@ -2,7 +2,8 @@
 
 ## 1.0.1
 
-- Added a compact C1, C2 or CL badge to identify the selected menu bar account.
+- Added an editable account badge to identify the selected menu bar account. Use CP, CW, PER or up to four letters or numbers.
+- Saved custom badges across restarts, while retaining defaults for existing account data.
 - Kept the badge neutral so pacing colors remain easy to read.
 
 ## 1.0.0

@@ -8,6 +8,12 @@ import Foundation
     }
     static func close(_ a: Double, _ b: Double) -> Bool { abs(a - b) < 0.001 }
     static func main() throws {
+        expect(AccountBadge.normalize("cp") == "CP", "custom badges normalize to uppercase")
+        expect(AccountBadge.normalize(" per! ") == "PER", "badge formatting strips unsupported characters")
+        expect(AccountBadge.normalize("personal") == "PERS", "badge width is capped at four characters")
+        expect(AccountBadge.title(custom: nil, slot: 0) == "C1", "older accounts retain their default badge")
+        expect(AccountBadge.title(custom: "", slot: 2) == "CL", "clearing restores the Claude default")
+        expect(AccountBadge.title(custom: "CP", slot: 0) == "CP", "custom badge replaces default identity marker")
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let window = UsageWindow(name: "5 hours", used: 60, duration: 18_000, reset: now.addingTimeInterval(10_800))
         let pace = window.pacing(at: now)!
