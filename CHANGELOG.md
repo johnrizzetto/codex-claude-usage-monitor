@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.1
+
+- Added a compact C1, C2 or CL badge to identify the selected menu bar account.
+- Kept the badge neutral so pacing colors remain easy to read.
+
 ## 1.0.0
 
 - Native macOS menu bar app for two Codex profiles and one Claude account.

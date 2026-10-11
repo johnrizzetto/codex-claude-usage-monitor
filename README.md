@@ -86,6 +86,8 @@ menu bar difference = usage percentage - expected usage
 
 The signed number is a **percentage-point difference**, not a relative speed multiplier. The bar's fill is quota used, and its marker is time elapsed.
 
+The menu bar badge identifies the selected account: **C1** for the first Codex profile, **C2** for the second, and **CL** for Claude. Hover to see the full account name. The badge stays neutral while the pacing number and bar carry the signal color.
+
 | Color | Rule |
 | --- | --- |
 | Green | On pace, behind pace, or no more than 3 percentage points ahead. |

@@ -218,10 +218,16 @@ struct WindowLane: View {
         let signal = PaceSignal.evaluate(window, at: now, stale: stale)
         let pace = signal == .unavailable ? nil : window?.pacing(at: now)
         let percentage = pace.map { String(format: " %+.0f%%", abs($0.delta) < 0.5 ? 0 : $0.delta) } ?? " ?%"
-        item.button?.attributedTitle = NSAttributedString(string: percentage, attributes: [
+        let accountBadge = account.isClaude ? "CL" : "C\(account.id + 1)"
+        let title = NSMutableAttributedString(string: " \(accountBadge)", attributes: [
+            .foregroundColor: NSColor.labelColor,
+            .font: NSFont.monospacedSystemFont(ofSize: 10, weight: .semibold)
+        ])
+        title.append(NSAttributedString(string: percentage, attributes: [
             .foregroundColor: MenuBarMeter.color(for: signal),
             .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .semibold)
-        ])
+        ]))
+        item.button?.attributedTitle = title
         item.button?.image = MenuBarMeter.image(used: window?.used, expected: pace?.expected, signal: signal)
         let identity = "\(account.label) · \(store.menuWindow.label)"
         if let window, let pace {
