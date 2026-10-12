@@ -9,7 +9,11 @@ import Foundation
     static func close(_ a: Double, _ b: Double) -> Bool { abs(a - b) < 0.001 }
     static func main() throws {
         expect(AccountBadge.normalize("cp") == "CP", "custom badges normalize to uppercase")
-        expect(AccountBadge.normalize(" per! ") == "PER", "badge formatting strips unsupported characters")
+        expect(AccountBadge.normalize(" per! ") == "PER!", "badge formatting preserves visible symbols")
+        expect(AccountBadge.normalize("🧠CP") == "🧠CP", "emoji and text can share a badge")
+        expect(AccountBadge.normalize("👨‍👩‍👧‍👦ABCX") == "👨‍👩‍👧‍👦ABC", "joined emoji count as one visible character")
+        expect(AccountBadge.normalize("🇺🇸👍🏽ABX") == "🇺🇸👍🏽AB", "flags and skin tones remain intact")
+        expect(AccountBadge.normalize("A\nB\tC") == "ABC", "control characters cannot enter a badge")
         expect(AccountBadge.normalize("personal") == "PERS", "badge width is capped at four characters")
         expect(AccountBadge.title(custom: nil, slot: 0) == "C1", "older accounts retain their default badge")
         expect(AccountBadge.title(custom: "", slot: 2) == "CL", "clearing restores the Claude default")

@@ -2,9 +2,12 @@ import Foundation
 
 public enum AccountBadge {
     public static func normalize(_ value: String) -> String {
-        String(String.UnicodeScalarView(value.uppercased().unicodeScalars.filter {
-            (65...90).contains($0.value) || (48...57).contains($0.value)
-        }.prefix(4)))
+        let visible = value.trimmingCharacters(in: .whitespacesAndNewlines).uppercased().filter { character in
+            !character.unicodeScalars.contains { scalar in
+                CharacterSet.controlCharacters.contains(scalar) && scalar.value != 0x200D
+            }
+        }
+        return String(visible.prefix(4))
     }
     public static func title(custom: String?, slot: Int) -> String {
         let value = normalize(custom ?? "")

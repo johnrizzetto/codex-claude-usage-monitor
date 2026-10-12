@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.2
+
+- Return and Escape end badge editing, and clicking unused popover space releases the cursor.
+- Opening the popover no longer automatically focuses a text field.
+- Badges now accept emoji and symbols, preserving joined emoji, flags and skin tones within a four-character limit.
+- Added a button to open the native emoji and symbol picker for a badge.
+
 ## 1.0.1
 
 - Added an editable account badge to identify the selected menu bar account. Use CP, CW, PER or up to four letters or numbers.

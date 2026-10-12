@@ -86,7 +86,7 @@ menu bar difference = usage percentage - expected usage
 
 The signed number is a **percentage-point difference**, not a relative speed multiplier. The bar's fill is quota used, and its marker is time elapsed.
 
-The menu bar badge identifies the selected account. Edit the **BADGE** field on any account card to use up to four letters or numbers, such as **CP** for Codex personal, **CW** for Codex work or **PER**. Your custom badge is saved across restarts. Clear the field to restore **C1**, **C2** or **CL**. Hover to see the full account name. The badge stays neutral while the pacing number and bar carry the signal color.
+The menu bar badge identifies the selected account. Edit the **BADGE** field on any account card to use up to four visible characters, including letters, numbers, emoji and symbols. Try **CP**, **CW**, **🧠CP** or **⭐**. Click the smiley button to open the native emoji and symbol picker, or paste a symbol directly. Return, Escape or clicking unused space ends editing. Your custom badge is saved across restarts. Clear the field to restore **C1**, **C2** or **CL**. Hover to see the full account name. Badge text stays neutral, emoji keep their native colors, and the pacing number and bar carry the signal color.
 
 | Color | Rule |
 | --- | --- |

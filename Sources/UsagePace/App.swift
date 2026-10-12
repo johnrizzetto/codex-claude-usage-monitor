@@ -59,6 +59,7 @@ struct Dashboard: View {
                 Text("Marker = time elapsed").font(.system(size: 10)).foregroundStyle(.secondary)
             }.padding(.horizontal, 20).padding(.vertical, 12)
         }.frame(width: 440, height: 690)
+            .background(EditorFocusDismissal())
     }
 }
 
@@ -66,6 +67,11 @@ struct AccountCard: View {
     let account: AccountState
     let now: Date
     @ObservedObject var store: AccountStore
+    @FocusState private var badgeFocused: Bool
+    private func finishBadgeEditing() {
+        badgeFocused = false
+        NSApp.keyWindow?.makeFirstResponder(nil)
+    }
     var stale: Bool { account.error != nil || account.updated.map { now.timeIntervalSince($0) > 600 } ?? true }
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -80,11 +86,22 @@ struct AccountCard: View {
                 Spacer()
                 VStack(spacing: 2) {
                     Text("BADGE").font(.system(size: 7, weight: .medium)).foregroundStyle(.secondary)
-                    TextField(account.menuBadge, text: Binding(get: { account.badge ?? "" }, set: { store.renameBadge(account.id, $0) }))
-                        .textFieldStyle(.roundedBorder).font(.system(size: 10, weight: .semibold, design: .monospaced))
-                        .multilineTextAlignment(.center).frame(width: 46)
-                        .help("Menu bar badge: up to 4 letters or numbers. Try CP, CW or PER. Clear to restore the default.")
-                        .accessibilityLabel("Menu bar badge for \(account.label)")
+                    HStack(spacing: 3) {
+                        TextField(account.menuBadge, text: Binding(get: { account.badge ?? "" }, set: { store.renameBadge(account.id, $0) }))
+                            .textFieldStyle(.roundedBorder).font(.system(size: 10, weight: .semibold, design: .monospaced))
+                            .multilineTextAlignment(.center).frame(width: 58)
+                            .focused($badgeFocused)
+                            .onSubmit { finishBadgeEditing() }
+                            .onExitCommand { finishBadgeEditing() }
+                            .help("Up to 4 visible characters, including emoji and symbols. Return or Escape finishes editing. Clear to restore the default.")
+                            .accessibilityLabel("Menu bar badge for \(account.label)")
+                        Button {
+                            badgeFocused = true
+                            DispatchQueue.main.async { NSApp.orderFrontCharacterPalette(nil) }
+                        } label: { Image(systemName: "face.smiling").font(.system(size: 11)) }
+                            .buttonStyle(.borderless).help("Insert emoji or symbols into the badge")
+                            .accessibilityLabel("Choose emoji for \(account.label) badge")
+                    }
                 }
                 if account.busy { ProgressView().controlSize(.small) }
                 else if !account.windows.isEmpty {
@@ -250,6 +267,7 @@ struct WindowLane: View {
         else if let button = item.button {
             NSApp.activate(ignoringOtherApps: true)
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+            popover.contentViewController?.view.window?.makeFirstResponder(nil)
         }
     }
     func applicationWillTerminate(_ notification: Notification) { titleTimer?.invalidate(); store.stop() }
