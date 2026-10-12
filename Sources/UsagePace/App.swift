@@ -78,6 +78,14 @@ struct AccountCard: View {
                         .font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
                 }
                 Spacer()
+                VStack(spacing: 2) {
+                    Text("BADGE").font(.system(size: 7, weight: .medium)).foregroundStyle(.secondary)
+                    TextField(account.menuBadge, text: Binding(get: { account.badge ?? "" }, set: { store.renameBadge(account.id, $0) }))
+                        .textFieldStyle(.roundedBorder).font(.system(size: 10, weight: .semibold, design: .monospaced))
+                        .multilineTextAlignment(.center).frame(width: 46)
+                        .help("Menu bar badge: up to 4 letters or numbers. Try CP, CW or PER. Clear to restore the default.")
+                        .accessibilityLabel("Menu bar badge for \(account.label)")
+                }
                 if account.busy { ProgressView().controlSize(.small) }
                 else if !account.windows.isEmpty {
                     Text(stale ? "STALE" : "LIVE").font(.system(size: 9, weight: .bold, design: .monospaced))
@@ -218,10 +226,16 @@ struct WindowLane: View {
         let signal = PaceSignal.evaluate(window, at: now, stale: stale)
         let pace = signal == .unavailable ? nil : window?.pacing(at: now)
         let percentage = pace.map { String(format: " %+.0f%%", abs($0.delta) < 0.5 ? 0 : $0.delta) } ?? " ?%"
-        item.button?.attributedTitle = NSAttributedString(string: percentage, attributes: [
+        let accountBadge = account.menuBadge
+        let title = NSMutableAttributedString(string: " \(accountBadge)", attributes: [
+            .foregroundColor: NSColor.labelColor,
+            .font: NSFont.monospacedSystemFont(ofSize: 10, weight: .semibold)
+        ])
+        title.append(NSAttributedString(string: percentage, attributes: [
             .foregroundColor: MenuBarMeter.color(for: signal),
             .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .semibold)
-        ])
+        ]))
+        item.button?.attributedTitle = title
         item.button?.image = MenuBarMeter.image(used: window?.used, expected: pace?.expected, signal: signal)
         let identity = "\(account.label) · \(store.menuWindow.label)"
         if let window, let pace {
