@@ -62,7 +62,7 @@ enum Locations {
         }
         process.terminationHandler = { [weak self] _ in Task { @MainActor in self?.close() } }
         try process.run()
-        _ = try await request("initialize", ["clientInfo": ["name": "usage_pace", "title": "Usage Pace", "version": "1.0.0"]])
+        _ = try await request("initialize", ["clientInfo": ["name": "usage_pace", "title": "Codex Claude Usage Monitor", "version": "1.0.0"]])
         try send(["method": "initialized"])
     }
     private func send(_ value: [String: Any]) throws {

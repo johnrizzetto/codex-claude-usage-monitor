@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.1.0
+
+- Renamed the app and public project to Codex Claude Usage Monitor, preserving existing account storage and preferences.
+
+- Added a dedicated Claude monitor login with automatic OAuth renewal and an app-owned Keychain cache.
+- Retained read-only access to existing shared Claude Code logins without refreshing their tokens.
+- Refreshes now resume after wake and unlock, run in common run-loop modes, and retry temporary failures with bounded backoff.
+- Added recovery for stuck refresh tasks and an explicit Keychain approval path for manual refresh.
+- Recent cached usage remains available during temporary failures, with its age and status visible.
+- Includes the badge cursor fix and emoji support from 1.0.2.
+
 ## 1.0.2
 
 - Return and Escape end badge editing, and clicking unused popover space releases the cursor.
