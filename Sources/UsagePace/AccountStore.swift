@@ -13,9 +13,11 @@ struct AccountState: Identifiable, Codable {
     var error: String?
     var busy = false
     var signingIn = false
+    var authenticationRequired = false
     var isClaude: Bool { id == 2 }
     var provider: String { isClaude ? "CLAUDE" : "CODEX" }
     var menuBadge: String { AccountBadge.title(custom: badge, slot: id) }
+    func stale(at now: Date) -> Bool { authenticationRequired || updated.map { now.timeIntervalSince($0) > 600 } ?? true }
     enum CodingKeys: CodingKey { case id, label, badge, email, windows, updated, connected }
 }
 
@@ -30,7 +32,13 @@ struct AccountState: Identifiable, Codable {
     }
     private var timer: Timer?
     private var activeClients: [Int: CodexRPC] = [:]
-    private var claudeCredential: ClaudeProvider.Credential?
+    private let claudeSession = ClaudeSessionManager()
+    private var nextAttempts = [Date.distantPast, Date.distantPast, Date.distantPast]
+    private var failures = [0, 0, 0]
+    private var refreshTasks: [Int: Task<Void, Never>] = [:]
+    private var refreshStarted: [Int: Date] = [:]
+    private var observers: [NSObjectProtocol] = []
+    var claudePersistent: Bool { claudeSession.persistent }
     private var loginTimeouts: [Int: Task<Void, Never>] = [:]
     private var generations = [0, 0, 0]
     var onChange: (() -> Void)?
@@ -44,9 +52,18 @@ struct AccountState: Identifiable, Codable {
         if let data = try? Data(contentsOf: cache), let saved = try? JSONDecoder().decode([AccountState].self, from: data) {
             for row in saved where accounts.indices.contains(row.id) { accounts[row.id] = row }
         }
-        timer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { [weak self] _ in
-            Task { @MainActor in if self?.paused == false { self?.refreshAll() } }
+        let timer = Timer(timeInterval: 30, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.refreshDue() }
         }
+        timer.tolerance = 5
+        RunLoop.main.add(timer, forMode: .common)
+        self.timer = timer
+        observers.append(NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor in self?.resumeRefreshing(afterWake: true) }
+        })
+        observers.append(NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.sessionDidBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor in self?.resumeRefreshing(afterWake: true) }
+        })
         refreshAll()
     }
     func save() {
@@ -62,22 +79,31 @@ struct AccountState: Identifiable, Codable {
         accounts[id].badge = badge.isEmpty ? nil : badge
         save()
     }
-    func refreshAll() { for id in accounts.indices where accounts[id].connected { refresh(id) } }
+    func refreshAll(allowPrompt: Bool = false) { for id in accounts.indices where accounts[id].connected { refresh(id, allowPrompt: allowPrompt) } }
+    private func refreshDue() {
+        guard !paused else { return }
+        for id in accounts.indices where accounts[id].connected && Date() >= nextAttempts[id] { refresh(id) }
+    }
+    func resumeRefreshing(afterWake: Bool = false) {
+        // Sleep time is not evidence that an active request is hung; allow its response to settle after wake.
+        if afterWake { for id in accounts.indices where accounts[id].busy { refreshStarted[id] = Date() } }
+        if !paused { refreshAll() }
+    }
     func refresh(_ id: Int, allowPrompt: Bool = false) {
+        if accounts[id].busy, let started = refreshStarted[id], Date().timeIntervalSince(started) > 90 {
+            cancelRefresh(id)
+            accounts[id].error = "Previous refresh timed out. Retrying."
+        }
         guard !accounts[id].busy, !accounts[id].signingIn else { return }
         accounts[id].busy = true
+        refreshStarted[id] = Date()
         let generation = generations[id]
-        Task {
+        refreshTasks[id] = Task {
             do {
                 let email: String?
                 let windows: [UsageWindow]
                 if id == 2 {
-                    do { claudeCredential = try ClaudeProvider.credential(allowPrompt: allowPrompt) }
-                    catch {
-                        guard let cached = claudeCredential, let expires = cached.expires, expires > Date(), !allowPrompt else { throw error }
-                    }
-                    guard let credential = claudeCredential else { throw MonitorError.message("Connect your Claude account first.") }
-                    (email, windows) = try await ClaudeProvider.usage(credential)
+                    (email, windows) = try await claudeSession.usage(allowPrompt: allowPrompt)
                 } else {
                     let client = CodexRPC()
                     activeClients[id] = client
@@ -96,14 +122,33 @@ struct AccountState: Identifiable, Codable {
                 accounts[id].windows = windows
                 accounts[id].updated = Date()
                 accounts[id].connected = true
-                accounts[id].error = nil
+                accounts[id].error = id == 2 ? claudeSession.warning : nil
+                accounts[id].authenticationRequired = false
+                failures[id] = 0
+                nextAttempts[id] = RefreshPolicy.nextAttempt(success: true, failures: 0, at: Date())
             } catch {
                 guard generation == generations[id] else { return }
                 accounts[id].error = error.localizedDescription
+                accounts[id].authenticationRequired = error is ClaudeSessionError && !(error as? ClaudeSessionError == .renewalTemporary)
+                failures[id] += 1
+                nextAttempts[id] = RefreshPolicy.nextAttempt(success: false, failures: failures[id], at: Date())
+                if claudeSession.persistent, let auth = error as? ClaudeSessionError, auth == .loginRequired || auth == .renewalUnavailable || auth == .unauthorized {
+                    nextAttempts[id] = .distantFuture
+                }
             }
             accounts[id].busy = false
+            refreshStarted.removeValue(forKey: id)
+            refreshTasks.removeValue(forKey: id)
             save()
         }
+    }
+    private func cancelRefresh(_ id: Int, clearClaudeSession: Bool = false) {
+        generations[id] += 1
+        refreshTasks.removeValue(forKey: id)?.cancel()
+        refreshStarted.removeValue(forKey: id)
+        activeClients.removeValue(forKey: id)?.close()
+        accounts[id].busy = false
+        if id == 2 { claudeSession.invalidate(clearSession: clearClaudeSession) }
     }
     func connectCodex(_ id: Int) {
         guard !accounts.contains(where: { $0.signingIn }), !accounts[id].busy else {
@@ -163,24 +208,30 @@ struct AccountState: Identifiable, Codable {
     func signInClaude() {
         do {
             let binary = try Locations.binary("claude")
+            try Locations.prepare(ClaudeSessionManager.profile)
+            cancelRefresh(2, clearClaudeSession: true)
+            claudeSession.beginLogin()
             let script = Locations.root.appendingPathComponent("claude-login.command")
-            let text = "#!/bin/zsh\nexport PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin\nunset ANTHROPIC_API_KEY CLAUDE_CODE_OAUTH_TOKEN\n'\(binary.path.replacingOccurrences(of: "'", with: "'\\''"))' auth login --claudeai\n"
+            let profile = ClaudeSessionManager.profile.path.replacingOccurrences(of: "'", with: "'\\''")
+            let text = "#!/bin/zsh\nexport PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin\nunset ANTHROPIC_API_KEY CLAUDE_CODE_OAUTH_TOKEN CLAUDE_SECURESTORAGE_CONFIG_DIR\nexport CLAUDE_CONFIG_DIR='\(profile)'\n'\(binary.path.replacingOccurrences(of: "'", with: "'\\''"))' auth login --claudeai\n"
             try text.write(to: script, atomically: true, encoding: .utf8)
             try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: script.path)
             NSWorkspace.shared.open(script)
-            accounts[2].error = "Complete the browser login in Terminal, then click Connect Claude."
+            accounts[2].error = "Complete the monitor's Claude browser login in Terminal, then click Connect Claude to enable automatic renewal."
         } catch { accounts[2].error = error.localizedDescription }
     }
     func disconnect(_ id: Int) {
-        generations[id] += 1
+        cancelRefresh(id, clearClaudeSession: true)
         cancelLogin(id)
         accounts[id] = AccountState(id: id, label: accounts[id].label, badge: accounts[id].badge)
-        if id == 2 { claudeCredential = nil }
+        if id == 2 { claudeSession.clearMemory() }
         // Keep provider credentials on disk so disconnect does not revoke or destroy a login.
         save()
     }
     func stop() {
         timer?.invalidate()
+        for task in refreshTasks.values { task.cancel() }
+        for observer in observers { NSWorkspace.shared.notificationCenter.removeObserver(observer) }
         for task in loginTimeouts.values { task.cancel() }
         for client in activeClients.values { client.close() }
     }

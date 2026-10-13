@@ -9,12 +9,28 @@ import Foundation
     static func close(_ a: Double, _ b: Double) -> Bool { abs(a - b) < 0.001 }
     static func main() throws {
         expect(AccountBadge.normalize("cp") == "CP", "custom badges normalize to uppercase")
-        expect(AccountBadge.normalize(" per! ") == "PER", "badge formatting strips unsupported characters")
+        expect(AccountBadge.normalize(" per! ") == "PER!", "badge formatting preserves visible symbols")
+        expect(AccountBadge.normalize("🧠CP") == "🧠CP", "emoji and text can share a badge")
+        expect(AccountBadge.normalize("👨‍👩‍👧‍👦ABCX") == "👨‍👩‍👧‍👦ABC", "joined emoji count as one visible character")
+        expect(AccountBadge.normalize("🇺🇸👍🏽ABX") == "🇺🇸👍🏽AB", "flags and skin tones remain intact")
+        expect(AccountBadge.normalize("A\nB\tC") == "ABC", "control characters cannot enter a badge")
         expect(AccountBadge.normalize("personal") == "PERS", "badge width is capped at four characters")
         expect(AccountBadge.title(custom: nil, slot: 0) == "C1", "older accounts retain their default badge")
         expect(AccountBadge.title(custom: "", slot: 2) == "CL", "clearing restores the Claude default")
         expect(AccountBadge.title(custom: "CP", slot: 0) == "CP", "custom badge replaces default identity marker")
         let now = Date(timeIntervalSince1970: 1_800_000_000)
+        expect(RefreshPolicy.retryDelay(failures: 1) == 30, "first failed refresh retries after thirty seconds")
+        expect(RefreshPolicy.retryDelay(failures: 9) == 300, "refresh retries remain bounded")
+        let session = ClaudeOAuthSession(accessToken: "fixture", refreshToken: "a+b&c", expiresAt: now.addingTimeInterval(200))
+        expect(session.needsRenewal(at: now), "session renews before token expiry")
+        expect(String(data: session.refreshBody!, encoding: .utf8)!.contains("a%2Bb%26c"), "refresh token form encoding preserves reserved characters")
+        let renewed = try session.applyingRefresh(Data(#"{"access_token":"new-fixture","expires_in":3600}"#.utf8), at: now)
+        expect(renewed.refreshToken == session.refreshToken, "refresh response may retain the existing refresh token")
+        expect(!renewed.needsRenewal(at: now), "renewed session has a new expiry")
+        let rotated = try session.applyingRefresh(Data(#"{"access_token":"new-fixture","refresh_token":"rotated-fixture","expires_in":3600}"#.utf8), at: now)
+        expect(rotated.refreshToken == "rotated-fixture", "rotating refresh tokens are retained")
+        do { _ = try session.applyingRefresh(Data(#"{"access_token":"","expires_in":-1}"#.utf8), at: now); expect(false, "invalid renewal is rejected") }
+        catch { expect(true, "invalid renewal is rejected") }
         let window = UsageWindow(name: "5 hours", used: 60, duration: 18_000, reset: now.addingTimeInterval(10_800))
         let pace = window.pacing(at: now)!
         expect(close(pace.expected, 40), "expected quota is proportional to elapsed time")

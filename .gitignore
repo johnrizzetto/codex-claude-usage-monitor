@@ -12,5 +12,6 @@ auth.json
 accounts.json
 codex-1/
 codex-2/
+claude-profile/
 claude-login.command
 release/

@@ -1,4 +1,4 @@
-# Usage Pace Implementation Plan
+# Codex Claude Usage Monitor Implementation Plan
 
 Goal: show three subscription accounts and pacing in one native Mac popover.
 

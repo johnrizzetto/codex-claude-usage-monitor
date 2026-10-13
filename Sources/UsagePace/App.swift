@@ -17,11 +17,11 @@ struct Dashboard: View {
         VStack(spacing: 0) {
             HStack {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Usage Pace").font(.system(size: 22, weight: .semibold, design: .rounded))
+                    Text("Codex Claude Usage Monitor").font(.system(size: 15, weight: .semibold, design: .rounded))
                     Text("Your accounts, against the clock").font(.system(size: 11)).foregroundStyle(.secondary)
                 }
                 Spacer()
-                Button { store.refreshAll() } label: { Image(systemName: "arrow.clockwise") }.buttonStyle(.borderless).help("Refresh all accounts")
+                Button { store.refreshAll(allowPrompt: true) } label: { Image(systemName: "arrow.clockwise") }.buttonStyle(.borderless).help("Refresh all accounts")
                 Menu {
                     Toggle("Pause automatic refresh", isOn: $store.paused)
                     Toggle("Launch at login", isOn: $atLogin).onChange(of: atLogin) { _, value in
@@ -30,7 +30,7 @@ struct Dashboard: View {
                     }
                     Divider()
                     Button("Open app data folder") { NSWorkspace.shared.activateFileViewerSelecting([Locations.root]) }
-                    Button("Quit Usage Pace") { NSApplication.shared.terminate(nil) }.keyboardShortcut("q")
+                    Button("Quit Codex Claude Usage Monitor") { NSApplication.shared.terminate(nil) }.keyboardShortcut("q")
                 } label: { Image(systemName: "gearshape") }.menuStyle(.borderlessButton).fixedSize()
             }.padding(20)
             HStack(spacing: 12) {
@@ -59,6 +59,7 @@ struct Dashboard: View {
                 Text("Marker = time elapsed").font(.system(size: 10)).foregroundStyle(.secondary)
             }.padding(.horizontal, 20).padding(.vertical, 12)
         }.frame(width: 440, height: 690)
+            .background(EditorFocusDismissal())
     }
 }
 
@@ -66,7 +67,12 @@ struct AccountCard: View {
     let account: AccountState
     let now: Date
     @ObservedObject var store: AccountStore
-    var stale: Bool { account.error != nil || account.updated.map { now.timeIntervalSince($0) > 600 } ?? true }
+    @FocusState private var badgeFocused: Bool
+    private func finishBadgeEditing() {
+        badgeFocused = false
+        NSApp.keyWindow?.makeFirstResponder(nil)
+    }
+    var stale: Bool { account.stale(at: now) }
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top) {
@@ -80,22 +86,33 @@ struct AccountCard: View {
                 Spacer()
                 VStack(spacing: 2) {
                     Text("BADGE").font(.system(size: 7, weight: .medium)).foregroundStyle(.secondary)
-                    TextField(account.menuBadge, text: Binding(get: { account.badge ?? "" }, set: { store.renameBadge(account.id, $0) }))
-                        .textFieldStyle(.roundedBorder).font(.system(size: 10, weight: .semibold, design: .monospaced))
-                        .multilineTextAlignment(.center).frame(width: 46)
-                        .help("Menu bar badge: up to 4 letters or numbers. Try CP, CW or PER. Clear to restore the default.")
-                        .accessibilityLabel("Menu bar badge for \(account.label)")
+                    HStack(spacing: 3) {
+                        TextField(account.menuBadge, text: Binding(get: { account.badge ?? "" }, set: { store.renameBadge(account.id, $0) }))
+                            .textFieldStyle(.roundedBorder).font(.system(size: 10, weight: .semibold, design: .monospaced))
+                            .multilineTextAlignment(.center).frame(width: 58)
+                            .focused($badgeFocused)
+                            .onSubmit { finishBadgeEditing() }
+                            .onExitCommand { finishBadgeEditing() }
+                            .help("Up to 4 visible characters, including emoji and symbols. Return or Escape finishes editing. Clear to restore the default.")
+                            .accessibilityLabel("Menu bar badge for \(account.label)")
+                        Button {
+                            badgeFocused = true
+                            DispatchQueue.main.async { NSApp.orderFrontCharacterPalette(nil) }
+                        } label: { Image(systemName: "face.smiling").font(.system(size: 11)) }
+                            .buttonStyle(.borderless).help("Insert emoji or symbols into the badge")
+                            .accessibilityLabel("Choose emoji for \(account.label) badge")
+                    }
                 }
                 if account.busy { ProgressView().controlSize(.small) }
                 else if !account.windows.isEmpty {
-                    Text(stale ? "STALE" : "LIVE").font(.system(size: 9, weight: .bold, design: .monospaced))
+                    Text(stale ? "STALE" : account.error != nil ? "CACHED" : "LIVE").font(.system(size: 9, weight: .bold, design: .monospaced))
                         .foregroundStyle(stale ? .orange : .teal)
                 }
                 Menu {
                     Button("Refresh") { store.refresh(account.id, allowPrompt: true) }.disabled(!account.connected)
                     if account.isClaude {
-                        Button("Connect Claude Code login") { store.connectClaude() }
-                        Button("Sign in through Claude Code") { store.signInClaude() }
+                        Button("Connect Claude") { store.connectClaude() }
+                        Button("Keep Claude signed in") { store.signInClaude() }
                     } else { Button("Sign in with ChatGPT") { store.connectCodex(account.id) } }
                     if account.connected { Button("Disconnect from monitor") { store.disconnect(account.id) } }
                 } label: { Image(systemName: "ellipsis") }.menuStyle(.borderlessButton).fixedSize()
@@ -126,6 +143,11 @@ struct AccountCard: View {
                     Text("Checked \(durationText(now.timeIntervalSince(updated))) ago")
                         .font(.system(size: 9)).foregroundStyle(.tertiary)
                 }
+            }
+            if account.isClaude, !store.claudePersistent {
+                Button("Keep Claude signed in") { store.signInClaude() }.controlSize(.small)
+                Text("One browser sign-in enables automatic token renewal for this monitor.")
+                    .font(.system(size: 9)).foregroundStyle(.secondary)
             }
             if let error = account.error {
                 Text(error).font(.system(size: 10)).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
@@ -207,14 +229,16 @@ struct WindowLane: View {
         item.button?.imagePosition = .imageLeading
         item.button?.target = self
         item.button?.action = #selector(toggle)
-        item.button?.toolTip = "Usage Pace: two Codex accounts and Claude"
+        item.button?.toolTip = "Codex Claude Usage Monitor: two Codex accounts and Claude"
         popover.behavior = .transient
         popover.contentSize = NSSize(width: 440, height: 690)
         popover.contentViewController = NSHostingController(rootView: Dashboard(store: store))
         store.onChange = { [weak self] in self?.updateTitle() }
-        titleTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+        let titleTimer = Timer(timeInterval: 60, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.updateTitle() }
         }
+        RunLoop.main.add(titleTimer, forMode: .common)
+        self.titleTimer = titleTimer
         updateTitle()
         if CommandLine.arguments.contains("--show") { toggle() }
     }
@@ -222,7 +246,7 @@ struct WindowLane: View {
         let now = Date()
         let account = store.accounts[store.menuAccount]
         let window = store.menuWindow.select(from: account.windows)
-        let stale = account.error != nil || account.updated.map { now.timeIntervalSince($0) > 600 } ?? true
+        let stale = account.stale(at: now)
         let signal = PaceSignal.evaluate(window, at: now, stale: stale)
         let pace = signal == .unavailable ? nil : window?.pacing(at: now)
         let percentage = pace.map { String(format: " %+.0f%%", abs($0.delta) < 0.5 ? 0 : $0.delta) } ?? " ?%"
@@ -240,16 +264,20 @@ struct WindowLane: View {
         let identity = "\(account.label) · \(store.menuWindow.label)"
         if let window, let pace {
             item.button?.toolTip = identity + String(format: ": %+.1f percentage points against perfect pacing (%.0f%% used, %.1f%% expected). Resets in %@.", pace.delta, window.used, pace.expected, durationText(pace.remaining))
+            if let updated = account.updated { item.button?.toolTip?.append(" Checked \(durationText(now.timeIntervalSince(updated))) ago.") }
+            if account.error != nil { item.button?.toolTip?.append(" Last refresh failed; showing a recent cached reading.") }
         } else {
             item.button?.toolTip = identity + (window == nil ? ": this window is unavailable for this account." : ": refresh needed for current pacing.")
         }
-        item.button?.setAccessibilityLabel(item.button?.toolTip ?? "Usage Pace")
+        item.button?.setAccessibilityLabel(item.button?.toolTip ?? "Codex Claude Usage Monitor")
     }
     @objc func toggle() {
         if popover.isShown { popover.performClose(nil) }
         else if let button = item.button {
+            store.resumeRefreshing()
             NSApp.activate(ignoringOtherApps: true)
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+            popover.contentViewController?.view.window?.makeFirstResponder(nil)
         }
     }
     func applicationWillTerminate(_ notification: Notification) { titleTimer?.invalidate(); store.stop() }

@@ -1,16 +1,16 @@
-# Usage Pace
+# Codex Claude Usage Monitor
 
-[![Build](https://github.com/johnrizzetto/usage-pace/actions/workflows/ci.yml/badge.svg)](https://github.com/johnrizzetto/usage-pace/actions/workflows/ci.yml)
+[![Build](https://github.com/johnrizzetto/codex-claude-usage-monitor/actions/workflows/ci.yml/badge.svg)](https://github.com/johnrizzetto/codex-claude-usage-monitor/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-187653)](LICENSE)
 [![macOS 14+](https://img.shields.io/badge/macOS-14%2B-202620)](#requirements)
 
 **See how far ahead or behind you are against your AI usage limits.**
 
-Usage Pace is a small native Mac menu bar app for Codex and Claude subscriptions. Pick an account and a 5-hour or weekly window. The menu bar shows a quota bar and a signed difference from perfect pacing, colored green, yellow or red.
+Codex Claude Usage Monitor is a small native Mac menu bar app for Codex and Claude subscriptions. Pick an account and a 5-hour or weekly window. The menu bar shows a quota bar and a signed difference from perfect pacing, colored green, yellow or red.
 
-[Website and interactive demo](https://johnrizzetto.github.io/usage-pace/) · [Download](https://github.com/johnrizzetto/usage-pace/releases/latest) · [Report a bug](https://github.com/johnrizzetto/usage-pace/issues/new/choose)
+[Website and interactive demo](https://johnrizzetto.github.io/codex-claude-usage-monitor/) · [Download](https://github.com/johnrizzetto/codex-claude-usage-monitor/releases/latest) · [Report a bug](https://github.com/johnrizzetto/codex-claude-usage-monitor/issues/new/choose)
 
-![Usage Pace example with illustrative account data](docs/assets/preview.svg)
+![Codex Claude Usage Monitor example with illustrative account data](docs/assets/preview.svg)
 
 ## What it does
 
@@ -26,7 +26,7 @@ Usage Pace is a small native Mac menu bar app for Codex and Claude subscriptions
 
 - macOS 14 or later. This is a Mac app, not a Windows or Linux app.
 - The official Codex CLI, or a supported installation of the ChatGPT desktop app that bundles it.
-- The official Claude Code CLI for Claude account login and token renewal.
+- The official Claude Code CLI for the initial Claude browser login.
 - Subscription accounts that expose usage information. An API key alone does not provide subscription usage limits.
 - Xcode Command Line Tools to build from source. Full Xcode is not required.
 
@@ -36,7 +36,7 @@ The app discovers CLIs in standard Homebrew and local install locations. Provide
 
 ### Download an app
 
-Choose the build matching your Mac from [Releases](https://github.com/johnrizzetto/usage-pace/releases/latest), unzip it and move **Usage Pace.app** to Applications. Release checksums are included alongside the downloads.
+Choose the build matching your Mac from [Releases](https://github.com/johnrizzetto/codex-claude-usage-monitor/releases/latest), unzip it and move **Codex Claude Usage Monitor.app** to Applications. Release checksums are included alongside the downloads.
 
 These builds are ad-hoc signed, not Apple Developer ID signed or notarized. macOS may decline to open a downloaded app. Building from source is an alternative. Only run a build whose source and origin you trust.
 
@@ -45,26 +45,30 @@ These builds are ad-hoc signed, not Apple Developer ID signed or notarized. macO
 Install Xcode Command Line Tools if they are not already installed, then run:
 
 ```sh
-git clone https://github.com/johnrizzetto/usage-pace.git
-cd usage-pace
+git clone https://github.com/johnrizzetto/codex-claude-usage-monitor.git
+cd codex-claude-usage-monitor
 ./test.sh
 ./build.sh
-open "dist/Usage Pace.app"
+open "dist/Codex Claude Usage Monitor.app"
 ```
 
 To install your build in your user Applications folder:
 
 ```sh
 mkdir -p "$HOME/Applications"
-ditto "dist/Usage Pace.app" "$HOME/Applications/Usage Pace.app"
-open "$HOME/Applications/Usage Pace.app"
+ditto "dist/Codex Claude Usage Monitor.app" "$HOME/Applications/Codex Claude Usage Monitor.app"
+open "$HOME/Applications/Codex Claude Usage Monitor.app"
 ```
 
 ## Connect your accounts
 
 **Codex:** click the menu bar meter, then **Sign in with ChatGPT** on each Codex card. Choose the intended account in your browser and complete one login at a time. Each slot has an independent app-owned Codex profile. It does not switch the account used by your regular Codex app or terminal.
 
-**Claude:** click **Connect Claude** to read your existing Claude Code OAuth login. macOS may ask for access to the `Claude Code-credentials` Keychain item. If you need to sign in, click **Sign in**, finish the official Claude Code flow in Terminal and your browser, then click **Connect Claude** again. Claude Code owns token renewal. Open it to renew an expired login, then refresh the monitor.
+**Claude:** for automatic renewal, click **Keep Claude signed in**, complete one browser login through the official CLI in Terminal, then click **Connect Claude**. This creates a dedicated monitor session without switching your regular Claude Code account. The app stores the monitor session in its own Keychain item, renews it before expiry, and saves rotating refresh tokens. macOS may ask for Keychain approval when you first connect or install a rebuilt app.
+
+Existing shared Claude Code logins still work through **Connect Claude**, but are read-only and depend on Claude Code to renew them. The dedicated login avoids competing with another app over shared refresh tokens. Do not use the monitor's `claude-profile` directory for regular CLI work.
+
+Refresh runs every five minutes while healthy. Temporary failures retry after 30 seconds, then one, two, four and five minutes. The app refreshes after wake/unlock and when you open the popover. The refresh icon can request explicit Keychain approval; background refresh never prompts. Revoked or non-renewable sessions require a new login.
 
 Click an account name to rename it. At the top of the popover, use the **Menu bar** selectors to choose the displayed account and **5 hours** or **Weekly**. Hover over the meter for the selected account and precise pacing details.
 
@@ -86,7 +90,7 @@ menu bar difference = usage percentage - expected usage
 
 The signed number is a **percentage-point difference**, not a relative speed multiplier. The bar's fill is quota used, and its marker is time elapsed.
 
-The menu bar badge identifies the selected account. Edit the **BADGE** field on any account card to use up to four letters or numbers, such as **CP** for Codex personal, **CW** for Codex work or **PER**. Your custom badge is saved across restarts. Clear the field to restore **C1**, **C2** or **CL**. Hover to see the full account name. The badge stays neutral while the pacing number and bar carry the signal color.
+The menu bar badge identifies the selected account. Edit the **BADGE** field on any account card to use up to four visible characters, including letters, numbers, emoji and symbols. Try **CP**, **CW**, **🧠CP** or **⭐**. Click the smiley button to open the native emoji and symbol picker, or paste a symbol directly. Return, Escape or clicking unused space ends editing. Your custom badge is saved across restarts. Clear the field to restore **C1**, **C2** or **CL**. Hover to see the full account name. Badge text stays neutral, emoji keep their native colors, and the pacing number and bar carry the signal color.
 
 | Color | Rule |
 | --- | --- |
@@ -110,7 +114,9 @@ App data lives in `~/Library/Application Support/UsagePace/`:
 | `claude-login.command` | A generated command invoking the official Claude login. No credentials. |
 | macOS preferences | Your selected account and window, stored with UserDefaults. |
 
-Claude OAuth credentials stay in Claude Code's native Keychain or credential file. Background Keychain reads do not prompt. The app never writes Claude credentials. Codex token renewal is delegated to the official CLI, scoped to the app's own account homes.
+The dedicated Claude session is stored in the app-owned Keychain item `com.johnrizzetto.usagepace.claude.session`. Login bootstrap files or Keychain entries belong to a separate `claude-profile` directory under app data. The app renews only this monitor session. It never refreshes or writes your shared Claude Code credentials. Background Keychain reads and writes do not prompt. Codex token renewal is delegated to the official CLI, scoped to the app's own account homes.
+
+Anthropic controls token lifetime and revocation. Automatic renewal keeps a valid session usable, but cannot extend a token's server-defined lifetime or restore a revoked grant. A locked Keychain can delay saving renewed tokens; the app keeps them in memory and asks you to unlock and manually refresh before quitting. Provider OAuth endpoints remain unofficial integrations and may change.
 
 **Disconnect** removes an account from the monitor but retains its provider credentials. To remove app-owned Codex credentials, disconnect first and remove the relevant `codex-1` or `codex-2` folder through **Open app data folder**. This does not revoke tokens upstream. Use the provider's account controls for revocation. Never upload app data, tokens, credential files or unredacted account screenshots to an issue.
 
@@ -118,7 +124,9 @@ Claude OAuth credentials stay in Claude Code's native Keychain or credential fil
 
 - **Only a weekly window appears:** that is what the provider currently reported for the account. The app does not invent a 5-hour limit.
 - **Gray `?%`:** reconnect or refresh. Missing resets, expired windows, provider errors and data older than ten minutes suppress pacing.
-- **Claude login expired:** open Claude Code to renew it, then refresh. Reconnect if macOS requires a fresh Keychain grant after an app rebuild.
+- **Claude login expired repeatedly:** choose **Keep Claude signed in** once to create the monitor session, then **Connect Claude**. A shared login cannot be renewed by the monitor.
+- **Keychain approval required:** use the refresh icon to authorize access, without signing out. Unlock your Mac if storage was temporarily unavailable. App rebuilds can require a fresh Keychain grant.
+- **A temporary refresh failed:** recent readings remain visible as `CACHED` with their original age. Data older than ten minutes still suppresses pacing. Automatic retries continue without pretending an old reading is live.
 - **CLI not found:** install the official CLI in a supported location, then retry.
 - **Launch at login does not work:** install the app in Applications and retry the setting. This uses macOS login-item services.
 - **An issue persists:** open a bug report with macOS version, app version, provider, selected window and a sanitized description. Do not attach credentials or `accounts.json`.
@@ -139,6 +147,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md) and the [arch
 
 Provider behavior was researched against the MIT-licensed [CodexBar](https://github.com/steipete/CodexBar) documentation and public source. No CodexBar source code is bundled.
 
-Usage Pace is independent of OpenAI and Anthropic. Codex, ChatGPT and Claude belong to their respective owners.
+Codex Claude Usage Monitor is independent of OpenAI and Anthropic. Codex, ChatGPT and Claude belong to their respective owners.
 
 [MIT License](LICENSE), copyright John Rizzetto.
